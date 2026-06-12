@@ -17,24 +17,37 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing start or end query parameters.' });
   }
 
-  const API_KEY = process.env.REACT_APP_API_KEY;
+  const API_KEY = process.env.ORS_API_KEY || process.env.REACT_APP_API_KEY;
   if (!API_KEY) {
-    return res.status(500).json({ error: 'API key not configured on server.' });
+    console.error('No API key found. Set ORS_API_KEY in Vercel environment variables.');
+    return res.status(500).json({ error: 'API key not configured on server. Set ORS_API_KEY in Vercel environment variables.' });
   }
 
-  const orsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${API_KEY}&start=${start}&end=${end}`;
+  // ORS JWT tokens (eyJ...) must be sent via Authorization header, not query param
+  const orsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?start=${start}&end=${end}`;
 
   try {
-    const response = await fetch(orsUrl);
+    console.log(`Calling ORS: ${orsUrl}`);
+    const response = await fetch(orsUrl, {
+      headers: {
+        'Authorization': API_KEY,
+        'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
+      }
+    });
+
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: data });
+      console.error(`ORS returned ${response.status}:`, JSON.stringify(data));
+      return res.status(response.status).json({
+        error: `ORS API error ${response.status}`,
+        detail: data
+      });
     }
 
     return res.status(200).json(data);
   } catch (err) {
-    console.error('Proxy error:', err);
-    return res.status(502).json({ error: 'Failed to reach OpenRouteService API.' });
+    console.error('Proxy fetch error:', err);
+    return res.status(502).json({ error: 'Failed to reach OpenRouteService API.', detail: err.message });
   }
 }
