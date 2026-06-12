@@ -1,5 +1,5 @@
 
-import React,{useState,useRef} from 'react';
+import React,{useState,useRef,useEffect} from 'react';
 import {MapContainer,TileLayer,Marker,Popup,Polyline,useMapEvents} from 'react-leaflet';
 import axios from 'axios';
 import L from 'leaflet';
@@ -115,6 +115,33 @@ export default function App(){
  const [currentLocation,setCurrentLocation]=useState(null);
  const [isModalOpen,setIsModalOpen]=useState(false);
  const markerRefs=useRef({});
+
+  // On mount: try to get the user's current location and use it as the initial location
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const coords = [lat, lng];
+        setCurrentLocation(coords);
+        // If start isn't set yet, use current location as the initial start point
+        setStart(prev => prev || { lat, lng });
+      },
+      (error) => {
+        console.warn('Unable to get initial geolocation:', error);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
+
+  // When the map instance and currentLocation are available, center the map
+  useEffect(() => {
+    if (map && currentLocation) {
+      map.setView(currentLocation, 15, { animate: false });
+    }
+  }, [map, currentLocation]);
 
  const openGoogleMapsNewTab=(s)=>{
     const name = s.tags?.name || 'Business';
