@@ -16,19 +16,27 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// Custom icons using Leaflet's divIcon
+// Custom icons using Leaflet's divIcon — SVG map pin shapes
 const startIcon = L.divIcon({
   className: 'custom-start-marker',
-  html: `<div style="background-color: #3B82F6; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10]
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="38" viewBox="0 0 28 38">
+    <path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 24 14 24s14-14.667 14-24C28 6.268 21.732 0 14 0z" fill="#22c55e" stroke="white" stroke-width="1.5"/>
+    <circle cx="14" cy="13" r="5" fill="white"/>
+  </svg>`,
+  iconSize: [28, 38],
+  iconAnchor: [14, 38],
+  popupAnchor: [0, -38]
 });
 
 const endIcon = L.divIcon({
   className: 'custom-end-marker',
-  html: `<div style="background-color: #EF4444; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10]
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="38" viewBox="0 0 28 38">
+    <path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 24 14 24s14-14.667 14-24C28 6.268 21.732 0 14 0z" fill="#ef4444" stroke="white" stroke-width="1.5"/>
+    <circle cx="14" cy="13" r="5" fill="white"/>
+  </svg>`,
+  iconSize: [28, 38],
+  iconAnchor: [14, 38],
+  popupAnchor: [0, -38]
 });
 
 const getBusinessIcon = (tags) => {
@@ -116,7 +124,7 @@ export default function App(){
  const [isModalOpen,setIsModalOpen]=useState(false);
  const markerRefs=useRef({});
 
-  // On mount: try to get the user's current location and use it as the initial location
+  // On mount: get current location to center the map only — does NOT set start point
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -124,10 +132,7 @@ export default function App(){
       (position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        const coords = [lat, lng];
-        setCurrentLocation(coords);
-        // If start isn't set yet, use current location as the initial start point
-        setStart(prev => prev || { lat, lng });
+        setCurrentLocation([lat, lng]);
       },
       (error) => {
         console.warn('Unable to get initial geolocation:', error);
@@ -183,14 +188,22 @@ export default function App(){
     try {
       setIsLoading(true);
       setLoadingStatus('Calculating route path...');
-      const API_KEY=process.env.REACT_APP_API_KEY;
-      if (!API_KEY) {
-        alert("API Key is missing. Please make sure the .env file exists in the project root directory and contains REACT_APP_API_KEY, and restart the development server.");
-        setIsLoading(false);
-        return;
+      // In production (Vercel), use the serverless proxy to avoid CORS.
+      // In local dev, call ORS directly since there is no local function runner.
+      let res;
+      if (process.env.NODE_ENV === 'production') {
+        const url=`/api/route?start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
+        res=await axios.get(url);
+      } else {
+        const API_KEY=process.env.REACT_APP_API_KEY;
+        if (!API_KEY) {
+          alert('API Key is missing. Add REACT_APP_API_KEY to your .env file and restart the dev server.');
+          setIsLoading(false);
+          return;
+        }
+        const url=`https://api.openrouteservice.org/v2/directions/driving-car?api_key=${API_KEY}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
+        res=await axios.get(url);
       }
-      const url=`https://api.openrouteservice.org/v2/directions/driving-car?api_key=${API_KEY}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
-      const res=await axios.get(url);
       const coords=res.data.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
       setRoute(coords);
 
@@ -279,23 +292,7 @@ export default function App(){
                   {start ? `${start.lat.toFixed(5)}, ${start.lng.toFixed(5)}` : 'Click map to select'}
                 </span>
               </div>
-              {currentLocation && !start && (
-                <button 
-                  onClick={() => setStart({ lat: currentLocation[0], lng: currentLocation[1] })}
-                  style={{
-                    fontSize: '11px',
-                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                    color: '#818cf8',
-                    border: 'none',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontWeight: '600'
-                  }}
-                >
-                  Use GPS
-                </button>
-              )}
+
             </div>
             <div className="point-row">
               <div className="point-dot end"></div>
